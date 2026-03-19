@@ -54,49 +54,84 @@ export default function LoginPage() {
     "Admin": "/admin"
   };
 
+  // const handleLogin = async () => {
+  //   if (!email) return toast.error("Please enter your email");
+  //   if (!password) return toast.error("Please enter your password");
+  //   if (!role) return toast.error("Please select a role");
+
+  //   try {
+  //     const response = await fetch("http://localhost:9900/api/v1/auth/login", {
+  //       method: "POST",
+  //       headers: {
+  //         "Content-Type": "application/json"
+  //       },
+  //       body: JSON.stringify({
+  //         email,
+  //         password,
+  //         roleId: role
+  //       })
+  //     });
+
+  //     const data = await response.json();
+
+  //     if (!response.ok || !data?.success) {
+  //       return toast.error(data?.message || "Login failed");
+  //     }
+
+  //     // Try multiple possible token locations
+  //     const token = data?.access_token || data?.token || data?.data?.access_token;
+  //     CacheManager.insecurePut(CacheManager.ACCESS_TOKEN_KEY, token);
+  //     const user = (await userService.queryUser()).sanitized;
+  //     toast.success("Welcome back!");
+  //     const selectedRole = roles.find(r => r.external_id === role);
+
+  //     const userWithRole = { ...user, role: selectedRole };
+  //     storage.setCurrentUser(userWithRole);
+
+  //     const route = roleRoutes[selectedRole?.name ?? ""] || "/";
+
+  //     navigate(route);
+
+  //   } catch (error) {
+  //     console.error(error);
+  //     toast.error("Network error. Please try again.");
+  //   }
+  // };
+
   const handleLogin = async () => {
-    if (!email) return toast.error("Please enter your email");
-    if (!password) return toast.error("Please enter your password");
-    if (!role) return toast.error("Please select a role");
+  if (!email) return toast.error("Please enter your email");
+  if (!password) return toast.error("Please enter your password");
+  if (!role) return toast.error("Please select a role");
 
-    try {
-      const response = await fetch("http://localhost:9900/api/v1/auth/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          email,
-          password,
-          roleId: role
-        })
-      });
+  try {
+    const loginUser = await userService.login({
+      email,
+      password,
+      roleId: role
+    });
 
-      const data = await response.json();
+    const res = loginUser.sanitized;
+    const token = res.access_token;
+    CacheManager.insecurePut(CacheManager.ACCESS_TOKEN_KEY, token);
 
-      if (!response.ok || !data?.success) {
-        return toast.error(data?.message || "Login failed");
-      }
+    const user = (await userService.queryUser()).sanitized;
 
-      // Try multiple possible token locations
-      const token = data?.access_token || data?.token || data?.data?.access_token;
-      CacheManager.insecurePut(CacheManager.ACCESS_TOKEN_KEY, token);
-      const user = (await userService.queryUser()).sanitized;
-      toast.success("Welcome back!");
-      const selectedRole = roles.find(r => r.external_id === role);
+    const selectedRole = roles.find(r => r.external_id === role);
 
-      const userWithRole = { ...user, role: selectedRole };
-      storage.setCurrentUser(userWithRole);
+    const userWithRole = { ...user, role: selectedRole };
 
-      const route = roleRoutes[selectedRole?.name ?? ""] || "/";
+    storage.setCurrentUser(userWithRole);
 
-      navigate(route);
+    toast.success("Welcome back!");
 
-    } catch (error) {
-      console.error(error);
-      toast.error("Network error. Please try again.");
-    }
-  };
+    const route = roleRoutes[selectedRole?.name ?? ""] || "/";
+    navigate(route);
+
+  } catch (error: any) {
+    console.error(error);
+    toast.error(error.message || "Login failed");
+  }
+};
 
   useLayoutEffect(() => {
   const checkLogin = () => {

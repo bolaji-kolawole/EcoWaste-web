@@ -1,8 +1,6 @@
 
   # Enhance Waste Management System
 
-  This is a code bundle for Enhance Waste Management System. The original project is available at https://www.figma.com/design/2QiaiGQCv2BFfhv9AojWx7/Enhance-Waste-Management-System.
-
   ## Running the code
 
   Run `npm i` to install the dependencies.

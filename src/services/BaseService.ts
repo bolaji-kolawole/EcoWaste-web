@@ -42,7 +42,7 @@ export class BaseService {
     // remove /json route after add formData submission on kyofuuc, and remove the headers this.config
     transport: Ffs;
     interceptor = new Interceptor();
-    baseUrl: string = import.meta.env.VITE_API_URL ?? "http://127.0.0.1:8400";
+    baseUrl: string = import.meta.env.VITE_API_URL ?? "http://127.0.0.1:9900";
     cacheManager = new LocalStorageCacheManager({
         encryptKey: true,
         encryptor: LzEncryptor,
@@ -136,6 +136,7 @@ export class BaseService {
                         });
                     }).catch(() => {
                         alert("Signin");
+                        CacheManager.clear();
                     });
                     return;
                 }
