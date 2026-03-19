@@ -54,50 +54,6 @@ export default function LoginPage() {
     "Admin": "/admin"
   };
 
-  // const handleLogin = async () => {
-  //   if (!email) return toast.error("Please enter your email");
-  //   if (!password) return toast.error("Please enter your password");
-  //   if (!role) return toast.error("Please select a role");
-
-  //   try {
-  //     const response = await fetch("http://localhost:9900/api/v1/auth/login", {
-  //       method: "POST",
-  //       headers: {
-  //         "Content-Type": "application/json"
-  //       },
-  //       body: JSON.stringify({
-  //         email,
-  //         password,
-  //         roleId: role
-  //       })
-  //     });
-
-  //     const data = await response.json();
-
-  //     if (!response.ok || !data?.success) {
-  //       return toast.error(data?.message || "Login failed");
-  //     }
-
-  //     // Try multiple possible token locations
-  //     const token = data?.access_token || data?.token || data?.data?.access_token;
-  //     CacheManager.insecurePut(CacheManager.ACCESS_TOKEN_KEY, token);
-  //     const user = (await userService.queryUser()).sanitized;
-  //     toast.success("Welcome back!");
-  //     const selectedRole = roles.find(r => r.external_id === role);
-
-  //     const userWithRole = { ...user, role: selectedRole };
-  //     storage.setCurrentUser(userWithRole);
-
-  //     const route = roleRoutes[selectedRole?.name ?? ""] || "/";
-
-  //     navigate(route);
-
-  //   } catch (error) {
-  //     console.error(error);
-  //     toast.error("Network error. Please try again.");
-  //   }
-  // };
-
   const handleLogin = async () => {
   if (!email) return toast.error("Please enter your email");
   if (!password) return toast.error("Please enter your password");
@@ -133,17 +89,22 @@ export default function LoginPage() {
   }
 };
 
-  useLayoutEffect(() => {
-  const checkLogin = () => {
+ useEffect(() => {
+  const checkLogin = async () => {
     const token = CacheManager.get(CacheManager.ACCESS_TOKEN_KEY);
 
     if (!token) {
-      fetchRoles();
+      await fetchRoles();
       return;
     }
 
     try {
       const user = storage.getCurrentUser();
+
+      if (!user) {
+        await fetchRoles();
+        return;
+      }
 
       const roleRoutes: Record<string, string> = {
         User: "/user",
@@ -151,17 +112,20 @@ export default function LoginPage() {
         Admin: "/admin",
       };
 
-      const route = roleRoutes[user?.role?.name ?? ""] || "/";
-      navigate(route);
+      const targetRoute = roleRoutes[user.role?.name ?? ""] || "/";
+
+      if (location.pathname !== targetRoute) {
+        navigate(targetRoute, { replace: true });
+      }
 
     } catch (error) {
       console.error(error);
-      fetchRoles();
+      await fetchRoles();
     }
   };
 
   checkLogin();
-}, []);
+}, [navigate, fetchRoles]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 flex items-center justify-center p-4 relative">
