@@ -20,6 +20,7 @@ export interface MergedClusterRequest {
   address: Address;
   address_id: string;
   created_at: string;
+  images: any;
   description: string;
   external_id: string;
   extra_data: string;
@@ -69,6 +70,13 @@ export default function StreetClusterModal({ cluster, onClose, onSelectRequest }
         const statusMap = Object.fromEntries(
           statusList.map((s) => [s.waste_request_id, s])
         );
+        
+        const imagesRes = await wasteRequestService.queryWasteRequestImage();
+        const imagesList = imagesRes?.sanitized?.content || [];
+
+        const imagesMap = Object.fromEntries(
+          imagesList.map((s) => [s.waste_request_id, s])
+        );
 
         // 4️⃣ Fetch users
         const userResponses = await Promise.all(
@@ -117,7 +125,8 @@ export default function StreetClusterModal({ cluster, onClose, onSelectRequest }
           user: usersMap[req.user_id] || null,
           address: addressesMap[req.user_id] || null,
           waste_type: wasteTypesMap[req.waste_type_id] || null,
-          status: statusMap[req.external_id] || null // ✅ HERE
+          status: statusMap[req.external_id] || null, // ✅ HERE
+          images: imagesMap[req.external_id] || null // ✅ HERE
         }));
 
         setRequests(mergedRequests);

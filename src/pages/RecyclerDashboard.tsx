@@ -42,6 +42,7 @@ export interface MergedClusterRequest {
   created_at: string;
   description: string;
   external_id: string;
+  images: any;
   extra_data: string;
   id: string;
   quantity: string;
@@ -65,6 +66,7 @@ export default function RecyclerDashboard() {
   const [selectedCluster, setSelectedCluster] = useState<StreetCluster | null>(null);
   const [showNotifications, setShowNotifications] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [loading, setLoading] = useState<boolean>(false);
 
   useEffect(() => {
     if (!user || user?.role?.name !== 'Recycler') {
@@ -72,9 +74,10 @@ export default function RecyclerDashboard() {
       return;
     }
     loadData();
-  }, [user, navigate]);
+  }, []);
 
   const loadData = async () => {
+    setLoading(true)
     try {
       // -----------------------------
       // 1️⃣ Fetch company + attach to user
@@ -98,6 +101,7 @@ export default function RecyclerDashboard() {
 
       const updatedUser = { ...user, company };
       storage.setCurrentUser(updatedUser);
+      setUser(updatedUser);
 
       if (!company?.cluster_id) {
         setRequests([]);
@@ -168,7 +172,8 @@ export default function RecyclerDashboard() {
         statusRes,
         wasteTypesRes,
         userResponses,
-        addressResponses
+        addressResponses,
+        imagesResponses,
       ] = await Promise.all([
         wasteRequestService.queryWasteRequestStatus(),
         wasteRequestService.queryWasteTypes(),
@@ -187,7 +192,8 @@ export default function RecyclerDashboard() {
               user_id: id
             })
           )
-        )
+        ),
+        wasteRequestService.queryWasteRequestImage()
       ]);
 
       // -----------------------------
@@ -219,6 +225,13 @@ export default function RecyclerDashboard() {
           const a = res?.sanitized?.content?.[0];
           return a ? [a.user_id, a] : [];
         }).filter(Boolean)
+      );
+
+      const imagesMap = Object.fromEntries(
+        (imagesResponses?.sanitized?.content || []).map((s) => [
+          s.waste_request_id,
+          s
+        ])
       );
 
       // -----------------------------
@@ -267,7 +280,8 @@ export default function RecyclerDashboard() {
           street_cluster: address
             ? clusterMap[address.cluster_id] || null
             : null,
-          status: statusMap[req.external_id] || null
+          status: statusMap[req.external_id] || null,
+          images: imagesMap[req.external_id] || null,
         };
       });
 
@@ -286,6 +300,7 @@ export default function RecyclerDashboard() {
 
         setNotifications(notificationRes?.sanitized?.content || []);
       }
+      setLoading(false);
 
     } catch (error) {
       console.error("Failed to load data:", error);
@@ -325,8 +340,8 @@ export default function RecyclerDashboard() {
   };
 
   const handleLogout = () => {
-    storage.setCurrentUser(null);
     CacheManager.clear();
+    storage.setCurrentUser(null);
     toast.success('Logged out successfully');
     navigate('/');
   };
@@ -391,7 +406,7 @@ export default function RecyclerDashboard() {
                 <Recycle className="size-6 text-white" />
               </div>
               <div>
-                <h1 className="text-xl font-semibold">{user.company?.name}</h1>
+                <h1 className="text-xl font-semibold">{user.company?.name || "Recycling Company"}</h1>
                 <p className="text-sm text-gray-600">Recycling Company Portal</p>
               </div>
             </div>
@@ -427,10 +442,10 @@ export default function RecyclerDashboard() {
               <CardTitle className="text-sm">Available Requests</CardTitle>
               <Clock className="size-4 text-yellow-600" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl">{pendingRequests.length}</div>
-              <p className="text-xs text-muted-foreground mt-1">Awaiting assignment</p>
-            </CardContent>
+              <CardContent>
+                <div className="text-2xl">{pendingRequests.length}</div>
+                <p className="text-xs text-muted-foreground mt-1">Awaiting assignment</p>
+              </CardContent>
           </Card>
 
           <Card>
@@ -508,72 +523,72 @@ export default function RecyclerDashboard() {
                   </div>
                 ) : (
                   clusters
-  .filter((cluster) => clusterRequestMap[cluster.external_id]?.length > 0)
-  .map((cluster) => {
-    // Filter only pending requests
-    const pendingRequests = (clusterRequestMap[cluster.external_id] || []).filter(
-      (r) => r.status?.status === "PENDING"
-    );
+                    .filter((cluster) => clusterRequestMap[cluster.external_id]?.length > 0)
+                    .map((cluster) => {
+                      // Filter only pending requests
+                      const pendingRequests = (clusterRequestMap[cluster.external_id] || []).filter(
+                        (r) => r.status?.status === "PENDING"
+                      );
 
-    // Skip clusters with no pending requests
-    if (pendingRequests.length === 0) return null;
+                      // Skip clusters with no pending requests
+                      if (pendingRequests.length === 0) return null;
 
-    return (
-      <Card
-        key={cluster.external_id}
-        className="cursor-pointer hover:shadow-md transition-shadow border-l-4 border-l-green-600"
-        onClick={() => setSelectedCluster(cluster)}
-      >
-        <CardContent className="p-4">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-2">
-                <Badge className="bg-green-100 text-green-800">
-                  <Map className="size-3 mr-1" />
-                  Street Cluster
-                </Badge>
-                <Badge variant="outline">
-                  {pendingRequests.length} Requests
-                </Badge>
-              </div>
+                      return (
+                        <Card
+                          key={cluster.external_id}
+                          className="cursor-pointer hover:shadow-md transition-shadow border-l-4 border-l-green-600"
+                          onClick={() => setSelectedCluster(cluster)}
+                        >
+                          <CardContent className="p-4">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <Badge className="bg-green-100 text-green-800">
+                                    <Map className="size-3 mr-1" />
+                                    Street Cluster
+                                  </Badge>
+                                  <Badge variant="outline">
+                                    {pendingRequests.length} Requests
+                                  </Badge>
+                                </div>
 
-              <h3 className="font-medium mb-2 text-lg">{cluster.area}</h3>
-              <p className="text-sm text-muted-foreground mb-3">{cluster.lga}</p>
+                                <h3 className="font-medium mb-2 text-lg">{cluster.area}</h3>
+                                <p className="text-sm text-muted-foreground mb-3">{cluster.lga}</p>
 
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                {pendingRequests.slice(0, 4).map((req: any) => (
-                  <div
-                    key={req.external_id}
-                    className="flex items-center gap-2 text-muted-foreground"
-                  >
-                    <Package className="size-3" />
-                    <span className="capitalize">{req.waste_type?.name || 'N/A'}</span>
-                    <span className="ml-1 text-xs text-gray-500">({req.user?.first_name})</span>
-                  </div>
-                ))}
-              </div>
+                                <div className="grid grid-cols-2 gap-2 text-sm">
+                                  {pendingRequests.slice(0, 4).map((req: any) => (
+                                    <div
+                                      key={req.external_id}
+                                      className="flex items-center gap-2 text-muted-foreground"
+                                    >
+                                      <Package className="size-3" />
+                                      <span className="capitalize">{req.waste_type?.name || 'N/A'}</span>
+                                      <span className="ml-1 text-xs text-gray-500">({req.user?.first_name})</span>
+                                    </div>
+                                  ))}
+                                </div>
 
-              {pendingRequests.length > 4 && (
-                <p className="text-xs text-muted-foreground mt-2">
-                  +{pendingRequests.length - 4} more requests
-                </p>
-              )}
-            </div>
+                                {pendingRequests.length > 4 && (
+                                  <p className="text-xs text-muted-foreground mt-2">
+                                    +{pendingRequests.length - 4} more requests
+                                  </p>
+                                )}
+                              </div>
 
-            <Button
-              className="bg-green-600 hover:bg-green-700 shrink-0"
-              onClick={(e) => {
-                e.stopPropagation();
-                setSelectedCluster(cluster);
-              }}
-            >
-              View Cluster
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  })
+                              <Button
+                                className="bg-green-600 hover:bg-green-700 shrink-0"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedCluster(cluster);
+                                }}
+                              >
+                                View Cluster
+                              </Button>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })
                 )}
               </TabsContent>
 

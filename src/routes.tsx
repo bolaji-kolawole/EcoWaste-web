@@ -6,6 +6,7 @@ import RecyclerDashboard from './pages/RecyclerDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import NotFoundPage from './pages/NotFoundPage';
 import SuperAdminDashboard from './pages/SuperAdminDashboard';
+import VerifyEmailPage from './pages/auth/VerifyEmailPage';
 
 export const router = createBrowserRouter([
   {
@@ -31,6 +32,10 @@ export const router = createBrowserRouter([
   {
     path: '/super-admin',
     Component: SuperAdminDashboard,
+  },
+  {
+    path: '/auth/verify-email/:token',
+    Component: VerifyEmailPage,
   },
   {
     path: '*',

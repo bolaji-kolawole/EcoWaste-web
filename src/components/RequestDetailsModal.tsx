@@ -36,6 +36,7 @@ ThreeDaysAgo.setDate(ThreeDaysAgo.getDate() - 3);
 
 export default function RequestDetailsModal({ request, onClose, userRole, onUpdate }: RequestDetailsModalProps) {
   const [company, setCompany] = useState<RecyclingCompany>();
+  const [loadingAction, setLoadingAction] = useState<string | null>(null);
 
   useEffect(() => {
 
@@ -49,9 +50,11 @@ export default function RequestDetailsModal({ request, onClose, userRole, onUpda
 
     fetch()
   }, [])
+
   const handleAcceptRequest = async (request: MergedClusterRequest) => {
     if (!request) return;
 
+    setLoadingAction("accept");
     const currentUser = storage.getCurrentUser();
     if (!currentUser || currentUser.role.name !== 'Recycler' || userRole !== 'Recycler') return;
 
@@ -81,11 +84,14 @@ export default function RequestDetailsModal({ request, onClose, userRole, onUpda
     await notificationService.createUserNotification(newNotification);
 
     toast.success('Request accepted successfully!');
+    setLoadingAction(null)
     onUpdate?.();
     onClose();
   };
 
   const handleCompleteRequest = async (request: MergedClusterRequest) => {
+
+    setLoadingAction("complete");
     try {
       if (!request.status?.external_id) {
         throw new Error("Missing status ID");
@@ -127,6 +133,22 @@ export default function RequestDetailsModal({ request, onClose, userRole, onUpda
     } catch (error) {
       console.error(error);
       toast.error("Failed to complete request");
+    } finally {
+      setLoadingAction(null);
+    }
+  };
+
+
+  const handleDeclineRequest = async () => {
+    setLoadingAction("decline");
+    try {
+      // await declineRequest();
+
+      onClose();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingAction(null);
     }
   };
 
@@ -278,21 +300,29 @@ export default function RequestDetailsModal({ request, onClose, userRole, onUpda
           </div>
 
           {/* Images */}
-          {/* {request.images.length > 0 && (
+
+          {request.images?.images?.length > 0 && (
             <div>
               <h3 className="font-medium mb-2">Photos</h3>
-              <div className="grid grid-cols-3 gap-2">
-                {request.images.map((img, index) => (
-                  <img
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                {request.images.images.map((img: string, index: number) => (
+                  <a
+                    href={img}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     key={index}
-                    src={img}
-                    alt={`Waste ${index + 1}`}
-                    className="w-full h-32 object-cover rounded"
-                  />
+                  >
+                    <img
+                      src={img}
+                      alt={`Waste ${index + 1}`}
+                      className="w-full h-32 object-cover rounded hover:opacity-80 cursor-pointer transition"
+                    />
+                  </a>
                 ))}
               </div>
             </div>
-          )} */}
+          )}
 
           {/* QR Code */}
           <div>
@@ -309,31 +339,53 @@ export default function RequestDetailsModal({ request, onClose, userRole, onUpda
 
           {/* Actions */}
           <div className="flex justify-end gap-2">
+
+            {/* PENDING: Accept / Decline */}
             {userRole === 'Recycler' && request.status.status === 'PENDING' && (
               <>
-                <Button variant="outline" onClick={onClose}>
-                  Decline
+                <Button
+                  variant="outline"
+                  onClick={handleDeclineRequest}
+                  disabled={loadingAction !== null}
+                >
+                  {loadingAction === "decline" ? (
+                    <span className="animate-spin inline-block w-5 h-5 border-2 border-t-2 border-gray-500 rounded-full"></span>
+                  ) : "Decline"}
                 </Button>
+
                 <Button
                   onClick={() => handleAcceptRequest(request)}
                   className="bg-green-600 hover:bg-green-700"
+                  disabled={loadingAction !== null}
                 >
-                  Accept Request
+                  {loadingAction === "accept" ? (
+                    <span className="animate-spin inline-block w-5 h-5 border-2 border-t-2 border-white rounded-full"></span>
+                  ) : "Accept Request"}
                 </Button>
               </>
             )}
 
-            {userRole === 'Recycler' && (request.status.status === 'ASSIGNED' || request.status.status === "ACCEPTED") && (
-              <Button onClick={() => handleCompleteRequest(request)} className="bg-green-600 hover:bg-green-700">
-                Mark as Completed
-              </Button>
-            )}
+            {/* ASSIGNED / ACCEPTED: Complete */}
+            {userRole === 'Recycler' &&
+              (request.status.status === 'ASSIGNED' || request.status.status === "ACCEPTED") && (
+                <Button
+                  onClick={() => handleCompleteRequest(request)}
+                  className="bg-green-600 hover:bg-green-700"
+                  disabled={loadingAction !== null}
+                >
+                  {loadingAction === "complete" ? (
+                    <span className="animate-spin inline-block w-5 h-5 border-2 border-t-2 border-white rounded-full"></span>
+                  ) : "Mark as Completed"}
+                </Button>
+              )}
 
-            {(userRole === 'User' || userRole === 'Admin' || (userRole === 'Recycler' && request.status.status !== 'pending' && request.status.status !== 'assigned')) && (
-              <Button variant="outline" onClick={onClose}>
+            {/* Close for everyone else */}
+            {(userRole === 'User' || userRole === 'Admin' || (userRole === 'Recycler' && !["PENDING", "ASSIGNED"].includes(request.status.status))) && (
+              <Button variant="outline" onClick={onClose} disabled={loadingAction !== null}>
                 Close
               </Button>
             )}
+
           </div>
         </div>
       </DialogContent>

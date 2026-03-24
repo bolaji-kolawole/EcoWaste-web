@@ -79,6 +79,9 @@ export default function ProfileModal({ open, onClose }: Props) {
    * Save profile
    */
   const handleSave = async () => {
+    if(!address.cluster_id ){
+      toast.error('Please select cluster')
+    }
     try {
       // update user
       if (user?.external_id) {

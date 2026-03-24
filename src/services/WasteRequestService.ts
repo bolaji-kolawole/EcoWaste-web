@@ -8,6 +8,7 @@ export interface WasteRequest {
     name: string;
     external_id: string;
     user_id: string;
+    recycling_company_id: string;
     waste_type_id: string;
     address_id: string;
     description: string;
@@ -182,7 +183,7 @@ export class WasteRequestService extends BaseService {
         return this.report(this.transport.patch(`/waste-request-status/${external_id}`, payload));
     }
 
-    createWasteRequestImage(payload: { waste_request_id: string, images: any }): Promise<SanitizedResponse<IRequestImage>> {
+    createWasteRequestImage(payload: { waste_request_id: string, images: any }): Promise<SanitizedResponse<RequestImage>> {
         return this.report(this.transport.post(`/request-image`, payload));
     }
 
@@ -207,5 +208,9 @@ export class WasteRequestService extends BaseService {
 
     queryRequestPoint(params: NoseurObject<string | number> = { page: 1, size: 50 }): Promise<SanitizedResponse<IRewardTransaction>> {
         return this.report(this.transport.get(`/reward-transaction`, { query: this.normalizeParams(params) }));
+    }
+
+    queryWasteRequestImage(params: NoseurObject<string | number> = { page: 1, size: 50 }): Promise<SanitizedResponse<IRequestImage>> {
+        return this.report(this.transport.get(`/request-image`, { query: this.normalizeParams(params) }));
     }
 }

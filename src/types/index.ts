@@ -1,4 +1,4 @@
-import { RecyclingCompany, WasteRequestService } from "../services/WasteRequestService";
+import { RecyclingCompany } from "../services/WasteRequestService";
 
 export type UserRole = 'User' | 'Recycler' | 'Admin';
 

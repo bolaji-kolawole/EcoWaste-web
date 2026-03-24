@@ -1,42 +1,98 @@
-import { useState } from 'react';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
-import { Button } from './ui/button';
-import { Input } from './ui/input';
-import { Label } from './ui/label';
-import { Textarea } from './ui/textarea';
-import { AlertTriangle, Upload, X } from 'lucide-react';
-import { toast } from 'sonner';
+import { useState } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle
+} from "./ui/dialog";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
+import { Textarea } from "./ui/textarea";
+import { AlertTriangle, Upload, X } from "lucide-react";
+import { toast } from "sonner";
 
+
+const API_URL = import.meta.env.VITE_API_URL;
 interface PublicReportModalProps {
   onClose: () => void;
 }
 
 export default function PublicReportModal({ onClose }: PublicReportModalProps) {
-  const [location, setLocation] = useState('');
-  const [description, setDescription] = useState('');
-  const [images, setImages] = useState<string[]>([]);
+  const [location, setLocation] = useState("");
+  const [description, setDescription] = useState("");
+  const [images, setImages] = useState<File[]>([]);
+  const [uploading, setUploading] = useState(false);
 
+  // Handle local image selection
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files) {
-      const newImages = Array.from(files).map((file) => URL.createObjectURL(file));
-      setImages([...images, ...newImages].slice(0, 5));
+      const selected = Array.from(files).slice(0, 5 - images.length);
+      setImages([...images, ...selected]);
     }
+  };
+
+  // Upload a single file to Cloudinary
+  const handleUpload = async (file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("upload_preset", "public_reports"); // Replace with your Cloudinary preset
+
+    const res = await fetch(
+      "https://api.cloudinary.com/v1_1/dks3iwjqe/image/upload",
+      {
+        method: "POST",
+        body: formData
+      }
+    );
+    const data = await res.json();
+    return data.secure_url;
   };
 
   const removeImage = (index: number) => {
     setImages(images.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!location || !description) {
-      toast.error('Please fill in all required fields');
+      toast.error("Please fill in all required fields");
       return;
     }
 
-    // In a real app, this would submit to the server
-    toast.success('Report submitted successfully! Authorities will be notified.');
-    onClose();
+    try {
+      setUploading(true);
+
+      // Upload images to Cloudinary
+      const uploadedUrls = await Promise.all(images.map((file) => handleUpload(file)));
+
+      // Prepare report payload
+      const reportData = {
+        location,
+        description,
+        images: uploadedUrls
+      };
+      // Replace with your backend API endpoint
+      const response = await fetch(`${API_URL}/public-report`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(reportData)
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error?.message || "Failed to submit report");
+      }
+
+      toast.success("Report submitted successfully! Authorities will be notified.");
+      onClose();
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || "Failed to submit report");
+    } finally {
+      setUploading(false);
+    }
   };
 
   return (
@@ -97,10 +153,10 @@ export default function PublicReportModal({ onClose }: PublicReportModalProps) {
 
               {images.length > 0 && (
                 <div className="grid grid-cols-5 gap-2 mt-4">
-                  {images.map((img, index) => (
+                  {images.map((file, index) => (
                     <div key={index} className="relative">
                       <img
-                        src={img}
+                        src={URL.createObjectURL(file)}
                         alt={`Upload ${index + 1}`}
                         className="w-full h-20 object-cover rounded"
                       />
@@ -126,11 +182,15 @@ export default function PublicReportModal({ onClose }: PublicReportModalProps) {
         </div>
 
         <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={onClose}>
+          <Button variant="outline" onClick={onClose} disabled={uploading}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit} className="bg-yellow-600 hover:bg-yellow-700">
-            Submit Report
+          <Button
+            onClick={handleSubmit}
+            className="bg-yellow-600 hover:bg-yellow-700"
+            disabled={uploading}
+          >
+            {uploading ? "Submitting..." : "Submit Report"}
           </Button>
         </div>
       </DialogContent>

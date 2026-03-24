@@ -78,7 +78,6 @@ export default function AdminDashboard() {
       const companiesRes = await wasteRequestService.queryRecyclingCompany();
       const companies = companiesRes.sanitized.content;
       setRecyclingCompany(companies);
-      const companyMap = Object.fromEntries(companies.map((c) => [c.cluster_id, c]));
 
       // 1️⃣ Fetch all cluster requests
       const clusterRequests = (await wasteRequestService.queryClusterRequest()).sanitized.content;
@@ -113,6 +112,17 @@ export default function AdminDashboard() {
         )
       );
       const addresses = addressResponses.map((res) => res.sanitized.content[0]);
+      // 5️⃣ Fetch image
+      const imageResponses = await Promise.all(
+        wasteRequests.map((req) =>
+          wasteRequestService.queryWasteRequestImage({ waste_request_id: req.external_id })
+        )
+      );
+
+      // Flatten per request: extract array of URLs
+      const requestImages = imageResponses.map((res) =>
+        res.sanitized.content[0] || []
+      );
 
       // 6️⃣ Fetch waste types
       const wasteTypesRes = await wasteRequestService.queryWasteTypes();
@@ -125,11 +135,13 @@ export default function AdminDashboard() {
       const streetClusters = clusterRes.sanitized.content;
       const clusterMap = Object.fromEntries(streetClusters.map((c) => [c.external_id, c]));
 
+
+      const recyclingMap = Object.fromEntries(companies.map((s) => [s.external_id, s]));
+
       // 8️⃣ Merge everything and include company + status
       const mergedClusterRequests = wasteRequests.map((req, index) => {
         const address = addresses[index];
         const streetCluster = address ? clusterMap[address.cluster_id] || null : null;
-        const company = streetCluster ? companyMap[streetCluster.external_id] || null : null;
 
         return {
           ...req,
@@ -137,12 +149,14 @@ export default function AdminDashboard() {
           address,
           waste_type: wasteTypeMap[req.waste_type_id] || null,
           street_cluster: streetCluster,
-          company,
-          status: statusMap[req.external_id] || null
+          company: recyclingMap[req.recycling_company_id] || null,
+          status: statusMap[req.external_id] || null,
+          images: requestImages[index] || [] // ✅ each request gets only its own images
         };
       });
 
       setRequests(mergedClusterRequests);
+      console.log(mergedClusterRequests);
     } catch (error) {
       console.error('Error loading data:', error);
     }

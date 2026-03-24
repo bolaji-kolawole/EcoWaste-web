@@ -31,6 +31,7 @@ export default function DataTableManager({ modelName, onUpdate }: DataTableManag
   const [roles, setRoles] = useState<any[]>([]);
   const [wasteTypes, setWasteTypes] = useState<any[]>([]);
   const [streetCluster, setStreetCluster] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -105,6 +106,7 @@ export default function DataTableManager({ modelName, onUpdate }: DataTableManag
     if (!confirm("Are you sure you want to delete this record?")) return;
 
     try {
+      setLoading(true);
       const adminApi = SuperAdminService.getInstance();
 
       await adminApi.deleteModelRecord(
@@ -119,12 +121,15 @@ export default function DataTableManager({ modelName, onUpdate }: DataTableManag
     } catch (error) {
       console.error(error);
       toast.error("Failed to delete record");
+    } finally {
+      setLoading(false);
     }
   };
 
 
   const handleSave = async () => {
     try {
+      setLoading(true);
       const adminApi = SuperAdminService.getInstance();
 
       if (selectedItem) {
@@ -137,7 +142,6 @@ export default function DataTableManager({ modelName, onUpdate }: DataTableManag
         toast.success("Record updated successfully");
       } else {
         // CREATE
-        console.log(modelName, formData)
         await adminApi.createModelRecord(
           modelName,
           formData
@@ -151,32 +155,35 @@ export default function DataTableManager({ modelName, onUpdate }: DataTableManag
     } catch (error) {
       console.error(error);
       toast.error("Failed to save record");
+    } finally {
+      setLoading(false);
     }
   };
 
   const getEmptyForm = () => {
     const templates: Record<string, any> = {
-      users: { email: '', password: '', name: '', phone: '', lasra: '' },
+      users: { email: '', password: '', first_name: '', last_name: '', phone: '', lasra: '' },
       roles: { name: '', description: '' },
       user_roles: { user_id: '', role_id: '', },
-      addresses: { userId: '', street: '', city: '', clusterId: '', state: 'Lagos'},
-      subscription_plans: { name: 'monthly', price: '', durationDays: '' },
+      addresses: { userId: '', street: '', city: '', clusterId: '', postalCode: '', state: 'Lagos' },
+      subscription_plans: { name: '', price: '', durationDays: '' },
       user_subscriptions: { userId: '', planId: '', startDate: '', endDate: '' },
-      payments: { userId: '', subscriptionId: '', amount: 0, status: 'successful', paymentMethod: 'paystack', reference: '' },
-      waste_types: { name: '', description: '', category: 'plastic', recyclingRate: 0, isHazardous: false },
-      waste_requests: { userId: '', wasteTypeId: '', addressId: '', description: '', quantity: '' },
-      request_images: { requestId: '', imageUrl: '', description: '', uploadedAt: '' },
+      payments: { userId: '', amount: '', subscriptionId: '', userSubscriptionId: '', paymentMethod: '', reference: '' },
+      waste_types: { name: '' },
+      waste_requests: { userId: '', wasteTypeId: '', recyclingCompanyId: '', addressId: '', description: '', quantity: '' },
+      request_images: { wasteRequestId: '', images: '' },
       request_assignments: { requestId: '', companyId: '', assignedBy: '', status: 'assigned', assignedAt: '' },
-      recycling_companies: { name: '', email: '', phone: '', address: '', registrationNumber: '', isActive: true, rating: 0, totalPickups: 0 },
-      company_users: { userId: '', companyId: '', position: '', isActive: true },
+      recycling_companies: { name: '', email: '', phone: '', address: '', clusterId: '' },
+      company_users: { userId: '', companyId: '' },
       pickup_schedules: { companyId: '', driverId: '', requestIds: [], scheduledDate: '', startTime: '', status: 'scheduled', routeOptimized: false },
       waste_collection_logs: { requestId: '', companyId: '', collectorId: '', weightKg: 0, verificationCode: '', collectedAt: '', notes: '' },
       recycling_rewards: { userId: '', totalPoints: 0, currentTier: 'bronze', lastUpdated: '' },
       reward_transactions: { userId: '', points: 0, type: 'earned', description: '', referenceId: '' },
-      street_clusters: { street: '', area: '', requestIds: [] },
-      notifications: { userId: '', message: '', type: 'info', read: false },
+      street_clusters: { area: '', lga: '' },
+      notifications: { title: '', message: '', type: '', recipientId: '', recipientRole: '', },
       notification_logs: { notificationId: '', channel: 'in_app', status: 'pending' },
-      reports: { title: '', type: 'waste_collection', generatedBy: '', dateFrom: '', dateTo: '', data: {} },
+      reports: { title: '', data: '', generatedBy: '' },
+      public_reports: { location: '', description: '', images: '' },
     };
     return templates[modelName] || {};
   };
@@ -285,36 +292,92 @@ export default function DataTableManager({ modelName, onUpdate }: DataTableManag
         </div>
       );
     }
-    
-   if (key === 'city') {
+
+    if (key === 'images') {
   return (
     <div key={key}>
       <Label>{getFieldLabel(key)}</Label>
 
-      <Select
-        value={formData.clusterId || ''}
-        onValueChange={(v) =>
-          setFormData({ ...formData, clusterId: v })
-        }
-      >
-        <SelectTrigger className="w-full">
-          <SelectValue placeholder="Select Street Cluster" />
-        </SelectTrigger>
+      {/* Upload input */}
+      <input
+        type="file"
+        multiple
+        accept="image/*"
+        onChange={(e: any) => {
+          const files = Array.from(e.target.files);
+          const imageUrls = files.map((file: any) =>
+            URL.createObjectURL(file)
+          );
 
-        <SelectContent>
-          {(streetCluster || []).map((cluster: any) => (
-            <SelectItem
-              key={cluster.external_id}
-              value={cluster.external_id}
-            >
-              {cluster.area}
-            </SelectItem>
+          setFormData({
+            ...formData,
+            images: imageUrls,
+            imageFiles: files, // keep actual files for upload
+          });
+        }}
+        className="w-full border rounded p-2"
+      />
+
+      {/* Image Preview Grid */}
+      {formData.images?.length > 0 && (
+        <div className="grid grid-cols-3 gap-2 mt-2">
+          {formData.images.map((img: string, index: number) => (
+            <div key={index} className="relative">
+              <img
+                src={img}
+                alt="preview"
+                className="w-full h-24 object-cover rounded"
+              />
+
+              {/* Remove Image */}
+              <button
+                type="button"
+                onClick={() => {
+                  const newImages = formData.images.filter(
+                    (_: any, i: number) => i !== index
+                  );
+                  setFormData({ ...formData, images: newImages });
+                }}
+                className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs"
+              >
+                ×
+              </button>
+            </div>
           ))}
-        </SelectContent>
-      </Select>
+        </div>
+      )}
     </div>
   );
 }
+    if (key === 'city') {
+      return (
+        <div key={key}>
+          <Label>{getFieldLabel(key)}</Label>
+
+          <Select
+            value={formData.clusterId || ''}
+            onValueChange={(v) =>
+              setFormData({ ...formData, clusterId: v })
+            }
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Select Street Cluster" />
+            </SelectTrigger>
+
+            <SelectContent>
+              {(streetCluster || []).map((cluster: any) => (
+                <SelectItem
+                  key={cluster.external_id}
+                  value={cluster.external_id}
+                >
+                  {cluster.area}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      );
+    }
 
     if (key === 'status' || key === 'plan' || key === 'priority' || key === 'type' || key === 'channel') {
       return (
@@ -392,21 +455,47 @@ export default function DataTableManager({ modelName, onUpdate }: DataTableManag
   };
 
   const renderValue = (key: string, value: any) => {
-    if (value === null || value === undefined) return '-';
+  if (value === null || value === undefined) return '-';
 
-    // Format timestamps
-    if (key === 'created_at' || key === 'updated_at' || key === 'createdAt' || key === 'updatedAt') {
-      const date = new Date(value);
-      return isNaN(date.getTime()) ? '-' : date.toLocaleString();
-    }
+  // Handle images
+  if (key === 'images') {
+    const imagesArray = value?.images || value;
 
-    if (typeof value === 'boolean') return value ? 'Yes' : 'No';
-    if (Array.isArray(value)) return `[${value.length} items]`;
-    if (typeof value === 'object') return JSON.stringify(value).substring(0, 50) + '...';
-    if (typeof value === 'string' && value.length > 50) return value.substring(0, 50) + '...';
+    if (!Array.isArray(imagesArray) || imagesArray.length === 0) return '-';
 
-    return String(value);
-  };
+    return (
+      <div className="flex gap-2 flex-wrap">
+        {imagesArray.map((img: string, index: number) => (
+          <a key={index} href={img} target="_blank" rel="noopener noreferrer">
+            <img
+              src={img}
+              alt="waste"
+              className="w-16 h-16 object-cover rounded border hover:opacity-80"
+            />
+          </a>
+        ))}
+      </div>
+    );
+  }
+
+  // Format timestamps
+  if (
+    key === 'created_at' ||
+    key === 'updated_at' ||
+    key === 'createdAt' ||
+    key === 'updatedAt'
+  ) {
+    const date = new Date(value);
+    return isNaN(date.getTime()) ? '-' : date.toLocaleString();
+  }
+
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  if (Array.isArray(value)) return `[${value.length} items]`;
+  if (typeof value === 'object') return JSON.stringify(value).substring(0, 50) + '...';
+  if (typeof value === 'string' && value.length > 50) return value.substring(0, 50) + '...';
+
+  return String(value);
+};
 
   const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
   const paginatedData = filteredData.slice(
@@ -540,8 +629,35 @@ export default function DataTableManager({ modelName, onUpdate }: DataTableManag
               <Button variant="outline" onClick={() => setShowEditModal(false)}>
                 Cancel
               </Button>
-              <Button onClick={handleSave} className="bg-purple-600 hover:bg-purple-700">
-                {selectedItem ? 'Update' : 'Create'}
+              <Button
+                onClick={handleSave}
+                className={`bg-purple-600 hover:bg-purple-700 w-full flex items-center justify-center`}
+                disabled={loading}
+              >
+                {loading ? (
+                  <svg
+                    className="animate-spin h-5 w-5 text-white"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    ></circle>
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8v8H4z"
+                    ></path>
+                  </svg>
+                ) : (
+                  selectedItem ? "Update" : "Create"
+                )}
               </Button>
             </div>
           </DialogContent>

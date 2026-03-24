@@ -53,6 +53,7 @@ export interface MergedRequests {
   external_id: string;
   user_id: string;
   waste_type_id: string;
+  images: any;
   address_id: string;
   description: string;
   status: RequestStatus;
@@ -121,11 +122,12 @@ export default function UserDashboard() {
   const loadData = async () => {
     try {
       // 1️⃣ Fetch all datasets in parallel
-      const [requestsRes, wasteTypesRes, addressesRes, statusRes] = await Promise.all([
+      const [requestsRes, wasteTypesRes, addressesRes, statusRes, imagesRes] = await Promise.all([
         wasteRequestService.queryWasteRequests({ user_id: user!.external_id }),
         wasteRequestService.queryWasteTypes(),
         wasteRequestService.queryUserAddress({ user_id: user!.external_id }),
-        wasteRequestService.queryWasteRequestStatus()
+        wasteRequestService.queryWasteRequestStatus(),
+        wasteRequestService.queryWasteRequestImage()
       ]);
 
       // 2️⃣ Safely extract responses
@@ -133,6 +135,7 @@ export default function UserDashboard() {
       const wasteTypes = wasteTypesRes?.sanitized?.content || [];
       const addresses = addressesRes?.sanitized?.content || [];
       const status = statusRes?.sanitized?.content || [];
+      const images = imagesRes?.sanitized?.content || [];
 
       // 3️⃣ Create lookup maps
       const wasteTypeMap = Object.fromEntries(
@@ -146,6 +149,10 @@ export default function UserDashboard() {
       const statusMap = Object.fromEntries(
         status.map(s => [s.waste_request_id, s])
       );
+      
+      const imagesMap = Object.fromEntries(
+        images.map(s => [s.waste_request_id, s])
+      );
 
       // 4️⃣ Merge datasets (✅ fixed status mapping)
       const mergedRequests = requests.map(req => ({
@@ -153,6 +160,7 @@ export default function UserDashboard() {
         waste_type: wasteTypeMap[req.waste_type_id] || null,
         status: statusMap[req.external_id] || null, // ✅ FIXED
         address: addressMap[req.address_id] || null,
+        images: imagesMap[req.external_id] || null,
       }));
 
       // 5️⃣ Update state
@@ -389,7 +397,7 @@ export default function UserDashboard() {
               <Package className="size-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl">{requests.length}</div>
+              <div className="text-2xl">{requests.length || 0}</div>
               <p className="text-xs text-muted-foreground mt-1">All time requests</p>
             </CardContent>
           </Card>
@@ -400,7 +408,7 @@ export default function UserDashboard() {
               <CheckCircle2 className="size-4 text-green-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl">{requests.filter((r) => r.status.status === 'COMPLETED').length}</div>
+              <div className="text-2xl">{requests.filter((r) => r.status.status === 'COMPLETED').length || 0}</div>
               <p className="text-xs text-muted-foreground mt-1">Successfully collected</p>
             </CardContent>
           </Card>
@@ -411,7 +419,7 @@ export default function UserDashboard() {
               <Award className="size-4 text-yellow-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl">{user.points}</div>
+              <div className="text-2xl">{user.points || 0}</div>
               <p className="text-xs text-muted-foreground mt-1">Earn more by recycling</p>
             </CardContent>
           </Card>

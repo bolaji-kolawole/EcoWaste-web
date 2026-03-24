@@ -24,6 +24,7 @@ export default function RegisterPage() {
   const [roles, setRoles] = useState<Role[]>([]);
   const [role, setRole] = useState<string>("");
   const [showPublicReport, setShowPublicReport] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(false);
 
   const fetchRoles = async () => {
     try {
@@ -59,6 +60,7 @@ export default function RegisterPage() {
       email,
       password,
     };
+    setLoading(true);
 
     try {
 
@@ -77,6 +79,8 @@ export default function RegisterPage() {
         error?.response?.data?.message || "Signup failed"
       );
 
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -173,12 +177,13 @@ export default function RegisterPage() {
               </Select>
             </div>
 
-            {/* Register Button */}
             <Button
               onClick={handleRegister}
-              className="w-full bg-green-600 hover:bg-green-700"
+              className={`w-full text-white font-semibold ${loading ? "bg-green-200 cursor-not-allowed" : "bg-green-600 hover:bg-green-700"
+                }`}
+              disabled={loading}
             >
-              Create Account
+              {loading ? "Creating Account..." : "Create Account"}
             </Button>
           </div>
 

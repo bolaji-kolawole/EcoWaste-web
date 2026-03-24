@@ -165,6 +165,12 @@ const MODEL_CONFIGS = [
         icon: 'FileText',
         description: 'Generated reports',
     },
+    {
+        name: 'public_reports' as ModelName,
+        displayName: 'Public Reports',
+        icon: 'FileText',
+        description: 'Reports submitted by the public',
+    },
 ];
 
 const ICON_MAP: Record<string, any> = {

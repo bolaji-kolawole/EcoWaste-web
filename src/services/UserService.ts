@@ -32,7 +32,7 @@ export class UserService extends BaseService {
         return UserService.instance;
     }
 
-    login(payload: { email: string, password: string, roleId: string }): Promise<SanitizedResponse<IAuthResponse>> {
+    login(payload: { email: string, password: string, roleId: string }): Promise<SanitizedResponse<any>> {
         return this.report(this.transport.post(`/auth/login`, payload));
     }
 

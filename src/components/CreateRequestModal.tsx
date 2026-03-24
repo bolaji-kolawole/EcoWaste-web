@@ -28,9 +28,10 @@ export default function CreateRequestModal({ userId, onClose, onSuccess }: Creat
   const [selectedAddress, setSelectedAddress] = useState<Address>();
   const [quantity, setQuantity] = useState('');
   const [description, setDescription] = useState('');
-  const [recyclingCompany, setRecyclingCompany] = useState<RecyclingCompany[]>([])
-  const [images, setImages] = useState<string[]>([]);
+  const [recyclingCompany, setRecyclingCompany] = useState<RecyclingCompany[]>([]);
   const [userAddress, setUserAddress] = useState<Address[]>([]);
+  const [images, setImages] = useState<File[]>([]);
+  const [loading, setLoading] = useState<boolean>(false);
 
 
 
@@ -52,37 +53,30 @@ export default function CreateRequestModal({ userId, onClose, onSuccess }: Creat
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (!files) return;
+    if (files) {
+      const selected = Array.from(files).slice(0, 5 - images.length);
+      setImages([...images, ...selected]);
+    }
+  };
 
-    const MAX_IMAGES = 5;
-    const MAX_SIZE = 5 * 1024 * 1024; // 5MB
+  const handleUpload = async (file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("upload_preset", "public_reports"); // Replace with your Cloudinary preset
 
-    const remainingSlots = MAX_IMAGES - images.length;
-
-    const validFiles = Array.from(files)
-      .slice(0, remainingSlots)
-      .filter(file => {
-        if (!file.type.startsWith("image/")) {
-          toast.error("Only image files are allowed");
-          return false;
-        }
-
-        if (file.size > MAX_SIZE) {
-          toast.error("Image size must be under 5MB");
-          return false;
-        }
-
-        return true;
-      });
-
-    const newImages = validFiles.map(file => URL.createObjectURL(file));
-
-    setImages(prev => [...prev, ...newImages]);
+    const res = await fetch(
+      "https://api.cloudinary.com/v1_1/dks3iwjqe/image/upload",
+      {
+        method: "POST",
+        body: formData
+      }
+    );
+    const data = await res.json();
+    return data.secure_url;
   };
 
   const removeImage = (index: number) => {
-    URL.revokeObjectURL(images[index]);
-    setImages(prev => prev.filter((_, i) => i !== index));
+    setImages(images.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async () => {
@@ -99,6 +93,9 @@ export default function CreateRequestModal({ userId, onClose, onSuccess }: Creat
     }
 
     try {
+      setLoading(true);
+      const uploadedUrls = await Promise.all(images.map((file) => handleUpload(file)));
+
       const payload = {
         waste_type_id: selectedWasteType,
         address_id: selectedAddress.external_id,
@@ -126,7 +123,7 @@ export default function CreateRequestModal({ userId, onClose, onSuccess }: Creat
         // images
         wasteRequestService.createWasteRequestImage({
           waste_request_id: wasteRequestId,
-          images,
+          images: uploadedUrls,
         }),
 
         // cluster
@@ -158,6 +155,8 @@ export default function CreateRequestModal({ userId, onClose, onSuccess }: Creat
     } catch (error) {
       console.error(error);
       toast.error("Failed to create waste request");
+    } finally {
+      setLoading(false)
     }
   };
 
@@ -263,10 +262,17 @@ export default function CreateRequestModal({ userId, onClose, onSuccess }: Creat
               </label>
               {images.length > 0 && (
                 <div className="grid grid-cols-5 gap-2 mt-4">
-                  {images.map((img, idx) => (
-                    <div key={idx} className="relative">
-                      <img src={img} alt={`Upload ${idx + 1}`} className="w-full h-20 object-cover rounded" />
-                      <button onClick={() => removeImage(idx)} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1">
+                  {images.map((file, index) => (
+                    <div key={index} className="relative">
+                      <img
+                        src={URL.createObjectURL(file)}
+                        alt={`Upload ${index + 1}`}
+                        className="w-full h-20 object-cover rounded"
+                      />
+                      <button
+                        onClick={() => removeImage(index)}
+                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1"
+                      >
                         <X className="size-3" />
                       </button>
                     </div>
@@ -277,8 +283,16 @@ export default function CreateRequestModal({ userId, onClose, onSuccess }: Creat
           </div>
 
           <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={onClose}>Cancel</Button>
-            <Button className="bg-green-600 hover:bg-green-700" onClick={handleSubmit}>Create Request</Button>
+            <Button variant="outline" onClick={onClose}>Cancel</Button><Button
+              onClick={handleSubmit}
+              disabled={loading}
+              className={`text-white ${loading
+                  ? "bg-green-300 cursor-not-allowed"
+                  : "bg-green-600 hover:bg-green-700"
+                }`}
+            >
+              {loading ? "Creating Request..." : "Create Request"}
+            </Button>
           </div>
         </div>
       </DialogContent>
