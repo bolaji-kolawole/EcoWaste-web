@@ -13,34 +13,70 @@ export default function VerifyEmailPage() {
   const navigate = useNavigate();
 
   const [status, setStatus] = useState("Verifying...");
-  const [email, setEmail] = useState<string>("");
+  const [email, setEmail] = useState("");
   const [canResend, setCanResend] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
 
-  // Verify email token on page load
+  // Cooldown countdown
+  useEffect(() => {
+    if (cooldown <= 0) return;
+
+    const interval = setInterval(() => {
+      setCooldown((prev) => prev - 1);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [cooldown]);
+
+  // Verify email token
   useEffect(() => {
     if (!token) return;
 
-    fetch(`${API_URL}/auth/verify-email/${token}`)
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 7000);
+
+    fetch(`${API_URL}/auth/verify-email/${token}`, {
+      signal: controller.signal,
+    })
       .then(async (res) => {
         const data = await res.json();
+
         if (res.ok) {
           setStatus("Email verified successfully!");
           toast.success(data.message);
+
+          // Auto redirect after 2s
+          setTimeout(() => navigate("/"), 2000);
         } else {
-          setStatus("Verification failed");
+          // Handle specific backend messages if available
+          if (data.code === "TOKEN_EXPIRED") {
+            setStatus("Verification link expired");
+          } else if (data.code === "INVALID_TOKEN") {
+            setStatus("Invalid verification link");
+          } else {
+            setStatus("Verification failed");
+          }
+
           toast.error(data.message);
-          if (data.email) setEmail(data.email); // Prefill if email available
+
+          if (data.email) setEmail(data.email);
           setCanResend(true);
         }
       })
       .catch((err) => {
-        console.error(err);
+        if (err.name === "AbortError") {
+          toast.error("Request timed out. Please try again.");
+        } else {
+          console.error(err);
+          toast.error("Verification failed. Try again.");
+        }
+
         setStatus("Verification failed");
-        toast.error("Verification failed. Try again.");
         setCanResend(true);
-      });
-  }, [token]);
+      })
+      .finally(() => clearTimeout(timeout));
+  }, [token, navigate]);
 
   // Resend verification email
   const handleResend = async () => {
@@ -48,6 +84,8 @@ export default function VerifyEmailPage() {
       toast.error("Please enter your email.");
       return;
     }
+
+    if (cooldown > 0) return;
 
     setLoading(true);
     try {
@@ -58,8 +96,10 @@ export default function VerifyEmailPage() {
       });
 
       const data = await res.json();
+
       if (res.ok) {
         toast.success("Verification email resent! Check your inbox.");
+        setCooldown(30); // 30s cooldown
       } else {
         toast.error(data.message || "Failed to resend verification email");
       }
@@ -92,9 +132,7 @@ export default function VerifyEmailPage() {
             </div>
           ) : canResend ? (
             <div className="space-y-4">
-              <p>
-                Didn't receive the verification email? Enter your email below to resend:
-              </p>
+              <p>Didn't receive the email? Enter your email to resend:</p>
 
               <div className="space-y-2">
                 <Label htmlFor="resend_email">Email</Label>
@@ -109,10 +147,18 @@ export default function VerifyEmailPage() {
 
               <Button
                 onClick={handleResend}
-                className={`w-full text-white font-semibold ${loading ? "bg-green-200 cursor-not-allowed" : "bg-green-600 hover:bg-green-700"}`}
-                disabled={loading}
+                disabled={loading || cooldown > 0}
+                className={`w-full text-white font-semibold ${
+                  loading || cooldown > 0
+                    ? "bg-green-200 cursor-not-allowed"
+                    : "bg-green-600 hover:bg-green-700"
+                }`}
               >
-                {loading ? "Resending..." : "Resend Verification Email"}
+                {loading
+                  ? "Resending..."
+                  : cooldown > 0
+                  ? `Retry in ${cooldown}s`
+                  : "Resend Verification Email"}
               </Button>
             </div>
           ) : null}
